@@ -21,6 +21,7 @@ class CollaborativeWhiteboard {
         this.initializeCanvas();
         this.setupEventListeners();
         this.setupSocketEvents();
+        this.setupPrivateRoomModal();
         this.initializeRoom();
     }
 
@@ -119,13 +120,31 @@ class CollaborativeWhiteboard {
 
     setupRoomControls() {
         const joinRoomBtn = document.getElementById('join-room-btn');
+        const createPrivateRoomBtn = document.getElementById('create-private-room-btn');
         const roomInput = document.getElementById('room-input');
+        const roomPassword = document.getElementById('room-password');
         const usernameInput = document.getElementById('username-input');
         
         joinRoomBtn.addEventListener('click', () => {
             const roomId = roomInput.value.trim() || 'default';
             const username = usernameInput.value.trim() || null;
-            this.joinRoom(roomId, username);
+            const password = roomPassword.value.trim();
+            this.joinRoom(roomId, username, password);
+        });
+        
+        createPrivateRoomBtn.addEventListener('click', () => {
+            this.showPrivateRoomModal();
+        });
+        
+        // Show password field when typing a private room ID
+        roomInput.addEventListener('input', (e) => {
+            const roomId = e.target.value.trim();
+            if (roomId.startsWith('private_')) {
+                roomPassword.style.display = 'block';
+            } else {
+                roomPassword.style.display = 'none';
+                roomPassword.value = '';
+            }
         });
         
         // Allow Enter key to join room
@@ -140,19 +159,78 @@ class CollaborativeWhiteboard {
                 joinRoomBtn.click();
             }
         });
+        
+        roomPassword.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                joinRoomBtn.click();
+            }
+        });
     }
 
-    setupActionControls() {
-        // Clear canvas
-        document.getElementById('clear-btn').addEventListener('click', () => {
-            if (confirm('Are you sure you want to clear the entire canvas? This action cannot be undone.')) {
-                this.clearCanvas();
+    setupPrivateRoomModal() {
+        const modal = document.getElementById('private-room-modal');
+        const closeBtn = modal.querySelector('.close');
+        const form = document.getElementById('private-room-form');
+        
+        if (!modal || !closeBtn || !form) {
+            console.error('Modal elements not found');
+            return;
+        }
+        
+        closeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.hidePrivateRoomModal();
+        });
+        
+        // Close modal when clicking outside
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.hidePrivateRoomModal();
             }
         });
         
-        // Save canvas
-        document.getElementById('save-btn').addEventListener('click', () => {
-            this.saveCanvas();
+        // Close modal with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && modal.style.display === 'flex') {
+                this.hidePrivateRoomModal();
+            }
+        });
+        
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.createPrivateRoom();
+        });
+    }
+
+    showPrivateRoomModal() {
+        const modal = document.getElementById('private-room-modal');
+        modal.style.display = 'flex';
+        document.getElementById('private-room-name').focus();
+    }
+
+    hidePrivateRoomModal() {
+        const modal = document.getElementById('private-room-modal');
+        modal.style.display = 'none';
+        // Clear form
+        document.getElementById('private-room-form').reset();
+        this.clearMessages();
+    }
+
+    createPrivateRoom() {
+        const roomName = document.getElementById('private-room-name').value.trim();
+        const password = document.getElementById('private-room-password').value.trim();
+        const maxUsers = parseInt(document.getElementById('max-users').value) || 10;
+        
+        if (!roomName || !password) {
+            this.showMessage('Room name and password are required', 'error');
+            return;
+        }
+        
+        this.socket.emit('create_private_room', {
+            room_name: roomName,
+            password: password,
+            max_users: maxUsers
         });
     }
 
@@ -169,6 +247,35 @@ class CollaborativeWhiteboard {
         
         this.socket.on('user_connected', (data) => {
             this.currentUser = data.user_id;
+        });
+        
+        // Private room events
+        this.socket.on('private_room_created', (data) => {
+            this.showMessage(`Private room "${data.room_name}" created successfully!`, 'success');
+            this.showMessage(`Room ID: ${data.room_id}`, 'info');
+            
+            // Auto-join the created room with current username
+            setTimeout(() => {
+                this.hidePrivateRoomModal();
+                const username = document.getElementById('username-input').value.trim() || null;
+                document.getElementById('room-input').value = data.room_id;
+                document.getElementById('room-password').value = document.getElementById('private-room-password').value;
+                document.getElementById('room-password').style.display = 'block';
+                this.joinRoom(data.room_id, username, document.getElementById('private-room-password').value);
+            }, 1500);
+        });
+        
+        this.socket.on('room_creation_error', (data) => {
+            this.showMessage(data.message, 'error');
+        });
+        
+        this.socket.on('room_joined', (data) => {
+            document.getElementById('room-name').innerHTML = `Room: ${data.room_name}${data.is_private ? '<span class="private-indicator">🔒 Private</span>' : ''}`;
+            this.showNotification(`Joined room: ${data.room_name}`, 'success');
+        });
+        
+        this.socket.on('room_join_error', (data) => {
+            this.showNotification(data.message, 'error');
         });
         
         this.socket.on('drawing_data', (data) => {
@@ -352,15 +459,13 @@ class CollaborativeWhiteboard {
     }
 
     // Room management
-    joinRoom(roomId, username) {
+    joinRoom(roomId, username, password = '') {
         this.currentRoom = roomId;
         this.socket.emit('join_room', {
             room_id: roomId,
-            username: username
+            username: username,
+            password: password
         });
-        
-        // Update UI
-        document.getElementById('room-name').textContent = `Room: ${roomId}`;
     }
 
     // Canvas actions
@@ -457,6 +562,29 @@ class CollaborativeWhiteboard {
         }
     }
 
+    showMessage(message, type = 'info') {
+        const modal = document.getElementById('private-room-modal');
+        const existingMessage = modal.querySelector('.message');
+        if (existingMessage) {
+            existingMessage.remove();
+        }
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}`;
+        messageDiv.textContent = message;
+        
+        const form = document.getElementById('private-room-form');
+        form.insertBefore(messageDiv, form.firstChild);
+    }
+
+    clearMessages() {
+        const modal = document.getElementById('private-room-modal');
+        const existingMessage = modal.querySelector('.message');
+        if (existingMessage) {
+            existingMessage.remove();
+        }
+    }
+
     showNotification(message, type = 'info') {
         // Simple notification system (could be enhanced)
         console.log(`[${type.toUpperCase()}] ${message}`);
@@ -464,24 +592,49 @@ class CollaborativeWhiteboard {
         // You could implement a toast notification system here
         const notification = document.createElement('div');
         notification.textContent = message;
+        
+        const colors = {
+            'info': '#17a2b8',
+            'success': '#28a745',
+            'error': '#dc3545',
+            'warning': '#ffc107'
+        };
+        
         notification.style.cssText = `
             position: fixed;
             top: 20px;
             right: 20px;
-            background: ${type === 'info' ? '#17a2b8' : '#28a745'};
+            background: ${colors[type] || colors.info};
             color: white;
             padding: 10px 15px;
             border-radius: 4px;
             z-index: 1000;
             font-size: 0.9rem;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 300px;
+            word-wrap: break-word;
         `;
         
         document.body.appendChild(notification);
         
         setTimeout(() => {
             notification.remove();
-        }, 3000);
+        }, type === 'error' ? 5000 : 3000);
+    }
+
+    setupActionControls() {
+        const clearBtn = document.getElementById('clear-btn');
+        const saveBtn = document.getElementById('save-btn');
+        
+        clearBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear the entire canvas? This cannot be undone.')) {
+                this.clearCanvas();
+            }
+        });
+        
+        saveBtn.addEventListener('click', () => {
+            this.saveCanvas();
+        });
     }
 }
 

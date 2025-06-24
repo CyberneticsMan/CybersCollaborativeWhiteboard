@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Collaborative Whiteboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="{{ url_for('static', filename='vendor/socket.io.js') }}"></script>
 </head>
 <body>
     <div class="app-container">
@@ -21,7 +21,9 @@
             <div class="header-right">
                 <input type="text" id="username-input" placeholder="Enter your name" maxlength="20">
                 <input type="text" id="room-input" placeholder="Room ID" maxlength="50">
+                <input type="password" id="room-password" placeholder="Room Password (optional)" maxlength="50" style="display:none;">
                 <button id="join-room-btn">Join Room</button>
+                <button id="create-private-room-btn">Create Private Room</button>
             </div>
         </header>
 
@@ -89,6 +91,29 @@
         <div class="status-bar">
             <span id="connection-status">🔴 Disconnected</span>
             <span id="mouse-coords">📍 x: 0, y: 0</span>
+        </div>
+    </div>
+
+    <!-- Private Room Modal -->
+    <div id="private-room-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Create Private Room</h2>
+            <form id="private-room-form">
+                <div class="form-group">
+                    <label for="private-room-name">Room Name:</label>
+                    <input type="text" id="private-room-name" required maxlength="50">
+                </div>
+                <div class="form-group">
+                    <label for="private-room-password">Password:</label>
+                    <input type="password" id="private-room-password" required maxlength="50">
+                </div>
+                <div class="form-group">
+                    <label for="max-users">Max Users (optional):</label>
+                    <input type="number" id="max-users" min="2" max="50" value="10">
+                </div>
+                <button type="submit">Create Room</button>
+            </form>
         </div>
     </div>
 
