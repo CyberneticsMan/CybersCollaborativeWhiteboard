@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Whiteboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1>🎨 Collaborative Whiteboard</h1>
+                <div class="room-info">
+                    <span id="room-name">Room: default</span>
+                    <span id="user-count">Users: 1</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <input type="text" id="username-input" placeholder="Enter your name" maxlength="20">
+                <input type="text" id="room-input" placeholder="Room ID" maxlength="50">
+                <button id="join-room-btn">Join Room</button>
+            </div>
+        </header>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <div class="tool-group">
+                <label>Tool:</label>
+                <button id="pen-tool" class="tool-btn active" data-tool="pen">✏️ Pen</button>
+                <button id="eraser-tool" class="tool-btn" data-tool="eraser">🧽 Eraser</button>
+            </div>
+            
+            <div class="tool-group">
+                <label for="color-picker">Color:</label>
+                <input type="color" id="color-picker" value="#000000">
+                <div class="preset-colors">
+                    <div class="color-btn" data-color="#000000" style="background: #000000"></div>
+                    <div class="color-btn" data-color="#ff0000" style="background: #ff0000"></div>
+                    <div class="color-btn" data-color="#00ff00" style="background: #00ff00"></div>
+                    <div class="color-btn" data-color="#0000ff" style="background: #0000ff"></div>
+                    <div class="color-btn" data-color="#ffff00" style="background: #ffff00"></div>
+                    <div class="color-btn" data-color="#ff00ff" style="background: #ff00ff"></div>
+                    <div class="color-btn" data-color="#00ffff" style="background: #00ffff"></div>
+                    <div class="color-btn" data-color="#ffffff" style="background: #ffffff; border: 1px solid #ccc"></div>
+                </div>
+            </div>
+            
+            <div class="tool-group">
+                <label for="brush-size">Size:</label>
+                <input type="range" id="brush-size" min="1" max="50" value="5">
+                <span id="brush-size-display">5px</span>
+            </div>
+            
+            <div class="tool-group">
+                <button id="clear-btn" class="action-btn">🗑️ Clear All</button>
+                <button id="save-btn" class="action-btn">💾 Save</button>
+            </div>
+        </div>
+
+        <!-- Main content area -->
+        <div class="main-content">
+            <!-- Sidebar with users -->
+            <div class="sidebar">
+                <h3>Online Users</h3>
+                <div id="users-list">
+                    <!-- Users will be populated here -->
+                </div>
+                
+                <div class="sidebar-section">
+                    <h4>Room Features</h4>
+                    <p>✨ Real-time collaboration</p>
+                    <p>👥 See other users' cursors</p>
+                    <p>🎨 Synchronized drawing</p>
+                    <p>💾 Persistent room state</p>
+                </div>
+            </div>
+
+            <!-- Canvas area -->
+            <div class="canvas-container">
+                <canvas id="whiteboard" width="1200" height="800"></canvas>
+                <div id="cursors-container"></div>
+            </div>
+        </div>
+
+        <!-- Status bar -->
+        <div class="status-bar">
+            <span id="connection-status">🔴 Disconnected</span>
+            <span id="mouse-coords">📍 x: 0, y: 0</span>
+        </div>
+    </div>
+
+    <!-- Room ID display (if joining via URL) -->
+    {% if room_id %}
+    <script>
+        window.initialRoomId = '{{ room_id }}';
+    </script>
+    {% endif %}
+
+    <script src="{{ url_for('static', filename='js/whiteboard.js') }}"></script>
+</body>
+</html>
